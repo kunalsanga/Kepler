@@ -27,6 +27,9 @@ export async function POST(req: NextRequest) {
 
     const llmApiUrl = process.env.LLM_API_URL || 'http://localhost:11434'
 
+    // Log the URL being used (for debugging)
+    console.log('Using LLM API URL:', llmApiUrl)
+
     if (!llmApiUrl) {
       return new Response(
         JSON.stringify({ 
