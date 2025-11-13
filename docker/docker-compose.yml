@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  vllm:
+    build:
+      context: ..
+      dockerfile: docker/vllm.Dockerfile
+    image: vllm-server:latest
+    container_name: vllm-server
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount your models directory
+      - ./models:/app/models
+      # Or use a named volume
+      # - vllm-models:/app/models
+    environment:
+      - MODEL_PATH=/app/models/Qwen2.5-7B-Instruct
+      - PORT=8000
+      - HOST=0.0.0.0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/models"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+# Uncomment if using named volume
+# volumes:
+#   vllm-models:
+

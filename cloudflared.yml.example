@@ -1,0 +1,17 @@
+# Cloudflare Tunnel Configuration
+# Copy this to cloudflared.yml and update with your tunnel details
+
+tunnel: my-llm
+credentials-file: C:\Users\YOUR_USERNAME\.cloudflared\<tunnel-id>.json
+
+ingress:
+  # Option 1: Simple setup (uses trycloudflare.com domain)
+  - service: http://localhost:11434
+
+  # Option 2: Custom domain (uncomment and configure)
+  # - hostname: llm.yourdomain.com
+  #   service: http://localhost:11434
+  
+  # Catch-all (must be last)
+  - service: http_status:404
+
