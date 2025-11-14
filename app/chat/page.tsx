@@ -125,7 +125,7 @@ export default function ChatPage() {
   }, [])
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div className="flex h-screen bg-background overflow-hidden" style={{ height: '100dvh', maxHeight: '100dvh' }}>
       {/* Sidebar Overlay (Mobile) */}
       {sidebarOpen && (
         <div 
@@ -140,6 +140,7 @@ export default function ChatPage() {
         w-64 border-r border-border bg-muted/30 flex flex-col
         transform transition-transform duration-300 ease-in-out
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+        h-screen md:h-auto
       `}>
         <div className="p-3 md:p-4 border-b border-border">
           <div className="flex items-center justify-between gap-2 mb-2 md:mb-0">
@@ -171,7 +172,7 @@ export default function ChatPage() {
       </aside>
 
       {/* Main Chat Area */}
-      <main className="flex-1 flex flex-col min-w-0">
+      <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         {/* Header */}
         <header className="border-b border-border px-3 md:px-4 py-2 md:py-3 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2 md:gap-3">
@@ -247,10 +248,14 @@ export default function ChatPage() {
         )}
 
         {/* Chat Messages */}
-        <ChatList messages={messages} isStreaming={isStreaming} />
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <ChatList messages={messages} isStreaming={isStreaming} />
+        </div>
 
         {/* Input Area */}
-        <ChatInput onSend={handleSend} disabled={isStreaming} />
+        <div className="shrink-0">
+          <ChatInput onSend={handleSend} disabled={isStreaming} />
+        </div>
       </main>
     </div>
   )

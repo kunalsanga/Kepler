@@ -83,3 +83,40 @@
   overflow-x: auto;
 }
 
+/* Mobile viewport fixes */
+@supports (height: 100dvh) {
+  html {
+    height: 100dvh;
+  }
+  
+  body {
+    height: 100dvh;
+    overflow: hidden;
+  }
+}
+
+/* Prevent mobile zoom on input focus */
+@media (max-width: 768px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* Mobile keyboard handling */
+@media (max-width: 768px) {
+  /* Ensure chat area is scrollable */
+  .chat-container {
+    height: 100dvh;
+    height: -webkit-fill-available;
+  }
+  
+  /* Fix for iOS Safari */
+  @supports (-webkit-touch-callout: none) {
+    .chat-container {
+      height: -webkit-fill-available;
+    }
+  }
+}
+

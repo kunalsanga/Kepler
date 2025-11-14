@@ -5,12 +5,13 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Kepler Chat - AI Assistant',
-  description: 'ChatGPT-like interface powered by custom LLM',
+  title: 'Kepler AI - Intelligent AI Assistant',
+  description: 'Advanced AI-powered conversation interface with real-time streaming and privacy-focused architecture',
   viewport: {
     width: 'device-width',
     initialScale: 1,
     maximumScale: 5,
+    userScalable: true,
   },
 }
 

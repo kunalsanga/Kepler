@@ -15,7 +15,15 @@ export function ChatList({ messages, isStreaming = false }: ChatListProps) {
 
   React.useEffect(() => {
     // Auto-scroll to bottom when new messages arrive or streaming updates
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    // Use setTimeout to ensure DOM is updated
+    const timeoutId = setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ 
+        behavior: 'smooth',
+        block: 'end'
+      })
+    }, 100)
+    
+    return () => clearTimeout(timeoutId)
   }, [messages, isStreaming])
 
   if (messages.length === 0) {
@@ -30,8 +38,8 @@ export function ChatList({ messages, isStreaming = false }: ChatListProps) {
   }
 
   return (
-    <ScrollArea className="flex-1 h-full">
-      <div className="flex flex-col">
+    <ScrollArea className="flex-1 h-full w-full">
+      <div className="flex flex-col min-h-full">
         {messages.map((message, index) => (
           <ChatMessage
             key={index}
@@ -39,7 +47,7 @@ export function ChatList({ messages, isStreaming = false }: ChatListProps) {
             isStreaming={isStreaming && index === messages.length - 1}
           />
         ))}
-        <div ref={messagesEndRef} />
+        <div ref={messagesEndRef} className="h-4" />
       </div>
     </ScrollArea>
   )
