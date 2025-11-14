@@ -91,8 +91,15 @@ export default function ChatPage() {
       }
       
       // Check if it's a connection error
-      if (errorMessage.includes('fetch') || errorMessage.includes('ECONNREFUSED')) {
-        errorMessage = 'Cannot connect to Ollama server. Please ensure Ollama is running and LLM_API_URL is correctly configured in .env.local'
+      if (errorMessage.includes('fetch') || errorMessage.includes('ECONNREFUSED') || errorMessage.includes('Connection failed') || errorMessage.includes('Cannot connect')) {
+        // Detect if we're on Vercel (production deployment)
+        const isVercel = typeof window !== 'undefined' && (window.location.hostname.includes('vercel.app') || window.location.hostname.includes('vercel.com'))
+        
+        if (isVercel) {
+          errorMessage = 'Cannot connect to Ollama server. This is a Vercel deployment - you need to expose your local Ollama via Cloudflare Tunnel and set LLM_API_URL in Vercel environment variables.'
+        } else {
+          errorMessage = 'Cannot connect to Ollama server. Please ensure Ollama is running and LLM_API_URL is correctly configured in .env.local'
+        }
       }
       
       setError(errorMessage)
@@ -171,13 +178,26 @@ export default function ChatPage() {
               <div className="text-xs opacity-90">{error}</div>
               <div className="text-xs mt-2 opacity-75">
                 <strong>To fix this:</strong>
-                <ul className="list-disc list-inside mt-1 space-y-0.5">
-                  <li>Ensure Ollama server is running (default: http://localhost:11434)</li>
-                  <li>Check that LLM_API_URL in .env.local matches your Ollama server URL</li>
-                  <li>Default URL: http://localhost:11434</li>
-                  <li>Restart the Next.js dev server after changing .env.local</li>
-                  <li>Test Ollama with: curl http://localhost:11434/api/tags</li>
-                </ul>
+                {typeof window !== 'undefined' && (window.location.hostname.includes('vercel.app') || window.location.hostname.includes('vercel.com')) ? (
+                  <ul className="list-disc list-inside mt-1 space-y-0.5">
+                    <li><strong>For Vercel deployment:</strong> You need to expose your local Ollama via Cloudflare Tunnel</li>
+                    <li>1. Run: <code className="bg-muted px-1 rounded">.\cloudflared.exe tunnel --url http://localhost:11434</code></li>
+                    <li>2. Copy the tunnel URL (e.g., https://xxxxx.trycloudflare.com)</li>
+                    <li>3. Go to Vercel Dashboard → Settings → Environment Variables</li>
+                    <li>4. Add/Update: <code className="bg-muted px-1 rounded">LLM_API_URL</code> = your tunnel URL</li>
+                    <li>5. Redeploy your Vercel project (Deployments → Redeploy)</li>
+                    <li>6. Keep the tunnel running while using the app</li>
+                    <li>See <code className="bg-muted px-1 rounded">QUICK_DEPLOY_CLOUDFLARE.md</code> for detailed instructions</li>
+                  </ul>
+                ) : (
+                  <ul className="list-disc list-inside mt-1 space-y-0.5">
+                    <li>Ensure Ollama server is running (default: http://localhost:11434)</li>
+                    <li>Check that LLM_API_URL in .env.local matches your Ollama server URL</li>
+                    <li>Default URL: http://localhost:11434</li>
+                    <li>Restart the Next.js dev server after changing .env.local</li>
+                    <li>Test Ollama with: curl http://localhost:11434/api/tags</li>
+                  </ul>
+                )}
               </div>
             </div>
             <Button

@@ -27,14 +27,42 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const llmApiUrl = process.env.LLM_API_URL || 'http://localhost:8000'
+    // Get LLM_API_URL from environment - REQUIRED, no fallback to localhost
+    const apiURL = process.env.LLM_API_URL
     const apiKey = process.env.LLM_API_KEY // Optional API key for vLLM
 
-    if (!llmApiUrl) {
+    // Log the URL being used (for debugging)
+    console.log('Using LLM_API_URL:', apiURL)
+
+    // Validate that LLM_API_URL is set
+    if (!apiURL) {
+      const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV
+      const errorMessage = isVercel
+        ? 'LLM_API_URL environment variable is not set in Vercel. Please add it in Vercel Dashboard → Settings → Environment Variables.'
+        : 'LLM_API_URL environment variable is not set. Please configure LLM_API_URL in your .env.local file'
+      
+      console.error('LLM_API_URL is missing!', { isVercel })
       return new Response(
         JSON.stringify({ 
-          error: 'LLM_API_URL environment variable is not set',
-          message: 'Please configure LLM_API_URL in your .env.local file'
+          error: 'Configuration error',
+          message: errorMessage,
+          details: 'The LLM_API_URL environment variable must be set to connect to your vLLM server.'
+        }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Prevent localhost usage on Vercel (it won't work)
+    const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV
+    const isLocalhost = apiURL.includes('localhost') || apiURL.includes('127.0.0.1')
+    
+    if (isVercel && isLocalhost) {
+      console.error('Invalid configuration: Vercel cannot access localhost!', { apiURL, isVercel })
+      return new Response(
+        JSON.stringify({ 
+          error: 'Configuration error',
+          message: 'LLM_API_URL cannot be localhost on Vercel. You must expose your local vLLM server via Cloudflare Tunnel and set LLM_API_URL to the tunnel URL.',
+          details: `Current LLM_API_URL: ${apiURL}. Please update it in Vercel Dashboard → Settings → Environment Variables to your Cloudflare Tunnel URL (e.g., https://xxxxx.trycloudflare.com)`
         }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       )
@@ -52,7 +80,9 @@ export async function POST(req: NextRequest) {
         headers['Authorization'] = `Bearer ${apiKey}`
       }
 
-      response = await fetch(`${llmApiUrl}/v1/chat/completions`, {
+      const fetchURL = `${apiURL}/v1/chat/completions`
+      console.log('Fetching from:', fetchURL)
+      response = await fetch(fetchURL, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -64,16 +94,30 @@ export async function POST(req: NextRequest) {
       })
     } catch (fetchError: any) {
       // Handle connection errors (ECONNREFUSED, network errors, etc.)
-      const errorMessage = fetchError?.code === 'ECONNREFUSED' 
-        ? `Cannot connect to vLLM server at ${llmApiUrl}. Please ensure your vLLM server is running.`
-        : fetchError?.message || 'Failed to connect to LLM server'
+      const isLocalhost = apiURL.includes('localhost') || apiURL.includes('127.0.0.1')
+      const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV
+      
+      let errorMessage = fetchError?.message || 'Failed to connect to LLM server'
+      
+      if (fetchError?.code === 'ECONNREFUSED' || fetchError?.message?.includes('ECONNREFUSED')) {
+        if (isVercel && isLocalhost) {
+          errorMessage = `Cannot connect to vLLM server. You're on Vercel trying to connect to localhost (${apiURL}), which won't work. You need to expose your local vLLM server via Cloudflare Tunnel and set LLM_API_URL to the tunnel URL in Vercel environment variables.`
+        } else {
+          errorMessage = `Cannot connect to vLLM server at ${apiURL}. Please ensure your vLLM server is running and accessible.`
+        }
+      }
       
       console.error('vLLM connection error:', fetchError)
+      console.error('LLM_API_URL:', apiURL)
+      console.error('Is Vercel:', isVercel)
+      console.error('Is localhost:', isLocalhost)
+      console.error('Fetch URL attempted:', `${apiURL}/v1/chat/completions`)
+      
       return new Response(
         JSON.stringify({ 
           error: 'Connection failed',
           message: errorMessage,
-          details: `Tried to connect to: ${llmApiUrl}/v1/chat/completions`
+          details: `Tried to connect to: ${apiURL}/v1/chat/completions${isVercel && isLocalhost ? ' (Vercel cannot access localhost - use Cloudflare Tunnel)' : ''}`
         }),
         { 
           status: 503,
