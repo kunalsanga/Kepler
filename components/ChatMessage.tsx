@@ -19,23 +19,23 @@ export function ChatMessage({ message, isStreaming = false }: ChatMessageProps) 
   return (
     <div
       className={cn(
-        'flex w-full items-start gap-4 px-4 py-6',
+        'flex w-full items-start gap-2 md:gap-4 px-3 md:px-4 py-4 md:py-6',
         isUser && 'bg-muted/30',
         isAssistant && 'bg-background'
       )}
     >
       <div className="flex-shrink-0">
         {isUser ? (
-          <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold text-sm">
+          <div className="h-7 w-7 md:h-8 md:w-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold text-xs md:text-sm">
             U
           </div>
         ) : (
-          <div className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center text-secondary-foreground font-semibold text-sm">
+          <div className="h-7 w-7 md:h-8 md:w-8 rounded-full bg-secondary flex items-center justify-center text-secondary-foreground font-semibold text-xs md:text-sm">
             AI
           </div>
         )}
       </div>
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 overflow-hidden">
         <div className="prose prose-sm dark:prose-invert max-w-none">
           {isUser ? (
             <p className="text-foreground whitespace-pre-wrap break-words">

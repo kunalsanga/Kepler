@@ -27,16 +27,18 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Get LLM_API_URL from environment - REQUIRED, no fallback to localhost
-    const apiURL = process.env.LLM_API_URL
+    // Get LLM_API_URL from environment
+    // Allow localhost fallback for local development, but NOT on Vercel
+    const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV
+    const apiURL = process.env.LLM_API_URL || (isVercel ? undefined : 'http://localhost:8000')
     const apiKey = process.env.LLM_API_KEY // Optional API key for vLLM
 
     // Log the URL being used (for debugging)
     console.log('Using LLM_API_URL:', apiURL)
+    console.log('Is Vercel:', isVercel)
 
     // Validate that LLM_API_URL is set
     if (!apiURL) {
-      const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV
       const errorMessage = isVercel
         ? 'LLM_API_URL environment variable is not set in Vercel. Please add it in Vercel Dashboard → Settings → Environment Variables.'
         : 'LLM_API_URL environment variable is not set. Please configure LLM_API_URL in your .env.local file'
@@ -53,7 +55,6 @@ export async function POST(req: NextRequest) {
     }
 
     // Prevent localhost usage on Vercel (it won't work)
-    const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV
     const isLocalhost = apiURL.includes('localhost') || apiURL.includes('127.0.0.1')
     
     if (isVercel && isLocalhost) {

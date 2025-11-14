@@ -20,10 +20,10 @@ export function ChatList({ messages, isStreaming = false }: ChatListProps) {
 
   if (messages.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center px-4">
         <div className="text-center text-muted-foreground">
-          <h2 className="text-2xl font-semibold mb-2">Start a conversation</h2>
-          <p className="text-sm">Send a message to begin chatting with the AI.</p>
+          <h2 className="text-xl md:text-2xl font-semibold mb-2">Start a conversation</h2>
+          <p className="text-xs md:text-sm">Send a message to begin chatting with the AI.</p>
         </div>
       </div>
     )

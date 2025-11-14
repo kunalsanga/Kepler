@@ -46,9 +46,9 @@ export function ChatInput({
   }
 
   return (
-    <div className="border-t border-border bg-background">
-      <form onSubmit={handleSubmit} className="flex items-end gap-2 p-4">
-        <div className="flex-1 relative">
+    <div className="border-t border-border bg-background shrink-0">
+      <form onSubmit={handleSubmit} className="flex items-end gap-2 p-2 md:p-4">
+        <div className="flex-1 relative min-w-0">
           <textarea
             ref={textareaRef}
             value={input}
@@ -58,11 +58,11 @@ export function ChatInput({
             disabled={disabled}
             rows={1}
             className={cn(
-              "w-full resize-none rounded-lg border border-input bg-background px-4 py-3",
-              "text-sm ring-offset-background placeholder:text-muted-foreground",
+              "w-full resize-none rounded-lg border border-input bg-background px-3 md:px-4 py-2 md:py-3",
+              "text-sm md:text-base ring-offset-background placeholder:text-muted-foreground",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
               "disabled:cursor-not-allowed disabled:opacity-50",
-              "max-h-[200px] overflow-y-auto"
+              "max-h-[150px] md:max-h-[200px] overflow-y-auto"
             )}
           />
         </div>
@@ -70,7 +70,7 @@ export function ChatInput({
           type="submit"
           disabled={!input.trim() || disabled}
           size="icon"
-          className="h-10 w-10 flex-shrink-0"
+          className="h-9 w-9 md:h-10 md:w-10 flex-shrink-0"
         >
           <Send className="h-4 w-4" />
           <span className="sr-only">Send message</span>

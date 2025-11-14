@@ -5,13 +5,14 @@ import { ChatList } from '@/components/ChatList'
 import { ChatInput } from '@/components/ChatInput'
 import { Message, streamLLMResponse, parseStreamChunk, extractContent } from '@/lib/llm'
 import { Button } from '@/components/ui/button'
-import { Plus, X, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { Plus, X, AlertCircle, CheckCircle2, Menu } from 'lucide-react'
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking')
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   // Check connection status on mount
   useEffect(() => {
@@ -124,18 +125,42 @@ export default function ChatPage() {
   }, [])
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-screen bg-background overflow-hidden">
+      {/* Sidebar Overlay (Mobile) */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar - Conversation History */}
-      <aside className="w-64 border-r border-border bg-muted/30 flex flex-col">
-        <div className="p-4 border-b border-border">
-          <Button
-            onClick={handleNewChat}
-            className="w-full justify-start gap-2"
-            variant="outline"
-          >
-            <Plus className="h-4 w-4" />
-            New Chat
-          </Button>
+      <aside className={`
+        fixed md:static inset-y-0 left-0 z-50 md:z-auto
+        w-64 border-r border-border bg-muted/30 flex flex-col
+        transform transition-transform duration-300 ease-in-out
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+      `}>
+        <div className="p-3 md:p-4 border-b border-border">
+          <div className="flex items-center justify-between gap-2 mb-2 md:mb-0">
+            <Button
+              onClick={handleNewChat}
+              className="flex-1 justify-start gap-2"
+              variant="outline"
+            >
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">New Chat</span>
+              <span className="sm:hidden">New</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden"
+              onClick={() => setSidebarOpen(false)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
         <div className="flex-1 overflow-y-auto p-2">
           {/* Conversation history would go here */}
@@ -146,25 +171,35 @@ export default function ChatPage() {
       </aside>
 
       {/* Main Chat Area */}
-      <main className="flex-1 flex flex-col">
+      <main className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="border-b border-border px-4 py-3 flex items-center justify-between">
-          <h1 className="text-lg font-semibold">Chat</h1>
-          <div className="flex items-center gap-2 text-xs">
+        <header className="border-b border-border px-3 md:px-4 py-2 md:py-3 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2 md:gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden"
+              onClick={() => setSidebarOpen(true)}
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+            <h1 className="text-base md:text-lg font-semibold">Chat</h1>
+          </div>
+          <div className="flex items-center gap-1 md:gap-2 text-xs">
             {connectionStatus === 'connected' ? (
               <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
-                <CheckCircle2 className="h-3 w-3" />
-                <span>Connected</span>
+                <CheckCircle2 className="h-3 w-3 md:h-3 md:w-3" />
+                <span className="hidden sm:inline">Connected</span>
               </div>
             ) : connectionStatus === 'disconnected' ? (
               <div className="flex items-center gap-1 text-red-600 dark:text-red-400">
-                <AlertCircle className="h-3 w-3" />
-                <span>Disconnected</span>
+                <AlertCircle className="h-3 w-3 md:h-3 md:w-3" />
+                <span className="hidden sm:inline">Disconnected</span>
               </div>
             ) : (
               <div className="flex items-center gap-1 text-muted-foreground">
                 <div className="h-3 w-3 rounded-full border-2 border-muted-foreground border-t-transparent animate-spin" />
-                <span>Checking...</span>
+                <span className="hidden sm:inline">Checking...</span>
               </div>
             )}
           </div>
@@ -172,11 +207,11 @@ export default function ChatPage() {
 
         {/* Error Display */}
         {error && (
-          <div className="bg-destructive/10 text-destructive px-4 py-3 text-sm border-b border-border flex items-start justify-between gap-2">
-            <div className="flex-1">
-              <div className="font-semibold mb-1">Connection Error</div>
-              <div className="text-xs opacity-90">{error}</div>
-              <div className="text-xs mt-2 opacity-75">
+          <div className="bg-destructive/10 text-destructive px-3 md:px-4 py-2 md:py-3 text-xs md:text-sm border-b border-border flex items-start justify-between gap-2 shrink-0 max-h-[40vh] md:max-h-none overflow-y-auto">
+            <div className="flex-1 min-w-0">
+              <div className="font-semibold mb-1 text-sm md:text-base">Connection Error</div>
+              <div className="text-xs opacity-90 break-words">{error}</div>
+              <div className="text-xs mt-2 opacity-75 hidden md:block">
                 <strong>To fix this:</strong>
                 {typeof window !== 'undefined' && (window.location.hostname.includes('vercel.app') || window.location.hostname.includes('vercel.com')) ? (
                   <ul className="list-disc list-inside mt-1 space-y-0.5">
@@ -203,7 +238,7 @@ export default function ChatPage() {
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6 flex-shrink-0"
+              className="h-6 w-6 md:h-6 md:w-6 flex-shrink-0"
               onClick={() => setError(null)}
             >
               <X className="h-4 w-4" />
