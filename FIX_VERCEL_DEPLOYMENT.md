@@ -8,38 +8,86 @@ Your app works locally but shows "Connection Error" on Vercel? This guide will f
 
 When deployed on Vercel, your app tries to connect to `http://localhost:11434` (your local Ollama), but Vercel's servers can't access your local machine. You need to expose your local Ollama to the internet using Cloudflare Tunnel.
 
+**❗ CRITICAL:** You MUST use a **PERMANENT named tunnel**, NOT a temporary `--url` tunnel!
+
+### Why Temporary Tunnels Fail:
+- ❌ URLs expire when you close CMD
+- ❌ URL changes every time you restart
+- ❌ Sometimes not publicly accessible
+- ❌ Breaks in production (Vercel can't reach them)
+
 ---
 
-## ✅ Solution: 5-Minute Fix
+## ✅ Solution: PERMANENT Tunnel Setup (5 Minutes)
 
-### Step 1: Start Cloudflare Tunnel (2 minutes)
+### ⚡ Quick Setup (Automated)
 
-**Option A: Quick Tunnel (Temporary - URL changes each time)**
+Run the setup script:
 ```powershell
-# Download cloudflared if you don't have it
-# From: https://github.com/cloudflare/cloudflared/releases
-# Or install via winget:
-winget install cloudflare.cloudflared
-
-# Start tunnel (keep this terminal open!)
-.\cloudflared.exe tunnel --url http://localhost:11434
+.\scripts\setup-permanent-tunnel.ps1
 ```
 
-**You'll see output like:**
-```
-+--------------------------------------------------------------------------------------------+
-|  Your quick Tunnel has been created! Visit it at (it may take some time to be reachable): |
-|  https://aerial-score-creative-luggage.trycloudflare.com                                  |
-+--------------------------------------------------------------------------------------------+
-```
-
-**Copy the URL** (e.g., `https://aerial-score-creative-luggage.trycloudflare.com`)
-
-**⚠️ Important:** Keep this terminal window open! The tunnel stops when you close it.
+This will create a permanent tunnel that never expires!
 
 ---
 
-### Step 2: Update Vercel Environment Variable (2 minutes)
+### 📋 Manual Setup
+
+### Step 1: Create Named Tunnel (Permanent)
+
+```powershell
+# Login to Cloudflare (first time only)
+cloudflared tunnel login
+
+# Create a named tunnel (permanent!)
+cloudflared tunnel create my-llm
+```
+
+Replace `my-llm` with your preferred name.
+
+### Step 2: Create Config File
+
+Create: `C:\Users\<yourname>\.cloudflared\config.yml`
+
+```yaml
+tunnel: my-llm
+credentials-file: C:\Users\<yourname>\.cloudflared\my-llm.json
+
+ingress:
+  - hostname: myai-bot.trycloudflare.com
+    service: http://localhost:11434
+  - service: http_status:404
+```
+
+**Replace:**
+- `my-llm` → your tunnel name
+- `myai-bot` → your desired subdomain (can be anything)
+- `<yourname>` → your Windows username
+
+### Step 3: Start the Permanent Tunnel
+
+```powershell
+cloudflared tunnel run my-llm
+```
+
+**You'll get a PERMANENT URL like:**
+```
+https://myai-bot.trycloudflare.com
+```
+
+**This URL NEVER changes!** ✅
+
+### Step 4: Test the Tunnel
+
+```powershell
+curl https://myai-bot.trycloudflare.com/api/tags
+```
+
+**Expected:** JSON response with your models ✅
+
+---
+
+### Step 5: Update Vercel Environment Variable (1 minute)
 
 1. **Go to Vercel Dashboard:**
    - Visit: https://vercel.com/dashboard
@@ -59,7 +107,7 @@ winget install cloudflare.cloudflared
 
 ---
 
-### Step 3: Redeploy on Vercel (1 minute)
+### Step 6: Redeploy on Vercel (1 minute)
 
 **⚠️ CRITICAL: You MUST redeploy after changing environment variables!**
 
@@ -71,12 +119,20 @@ winget install cloudflare.cloudflared
 
 ---
 
-### Step 4: Test It! 🎉
+### Step 7: Test It! 🎉
 
 1. Visit your Vercel URL
 2. Go to the chat page
 3. Send a message
 4. It should work! ✅
+
+---
+
+## 📚 Full Documentation
+
+For complete setup instructions, see:
+- **`SETUP_PERMANENT_TUNNEL.md`** - Detailed permanent tunnel guide
+- **`QUICK_DEPLOY_CLOUDFLARE.md`** - Quick deployment guide
 
 ---
 
