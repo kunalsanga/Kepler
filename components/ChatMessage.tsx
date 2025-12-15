@@ -1,117 +1,111 @@
 'use client'
 
-import React, { useEffect, useRef } from 'react'
+import React from 'react'
+import { Message } from '@/lib/llm'
+import { cn } from '@/lib/utils'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { cn } from '@/lib/utils'
-import { Message } from '@/lib/llm'
-import { CodeBlock } from './CodeBlock'
+import rehypeRaw from 'rehype-raw'
+import { User, Sparkles, Copy, Check } from 'lucide-react'
+import { CodeBlock } from '@/components/CodeBlock'
 
 interface ChatMessageProps {
   message: Message
   isStreaming?: boolean
 }
 
-export function ChatMessage({ message, isStreaming = false }: ChatMessageProps) {
+// Memoized content component to prevent unnecessary re-renders of the markdown parser
+const MarkdownContent = React.memo(({ content, isStreaming }: { content: string, isStreaming: boolean }) => {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      rehypePlugins={[rehypeRaw]}
+      components={{
+        code({ node, inline, className, children, ...props }: any) {
+          const match = /language-(\w+)/.exec(className || '')
+          const language = match ? match[1] : ''
+
+          if (!inline && language) {
+            return (
+              <CodeBlock
+                language={language}
+                value={String(children).replace(/\n$/, '')}
+                {...props}
+              />
+            )
+          }
+
+          return (
+            <code className={cn("bg-black/5 dark:bg-white/10 rounded px-1 py-0.5 font-normal text-sm before:content-[''] after:content-['']", className)} {...props}>
+              {children}
+            </code>
+          )
+        }
+      }}
+    >
+      {content + (isStreaming ? '▍' : '')}
+    </ReactMarkdown>
+  )
+}, (prev, next) => {
+  // Only re-render if content length changes significantly or streaming state changes
+  // This helps reduce jitter during rapid token streaming
+  return prev.content === next.content && prev.isStreaming === next.isStreaming
+})
+
+export const ChatMessage = React.memo(function ChatMessage({ message, isStreaming = false }: ChatMessageProps) {
   const isUser = message.role === 'user'
-  const isAssistant = message.role === 'assistant'
+  const [copied, setCopied] = React.useState(false)
+
+  const copyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(message.content)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy text: ', err)
+    }
+  }
 
   return (
-    <div
-      className={cn(
-        'flex w-full items-start gap-2 md:gap-4 px-3 md:px-4 py-4 md:py-6',
-        isUser && 'bg-muted/30',
-        isAssistant && 'bg-background'
-      )}
-    >
-      <div className="flex-shrink-0">
-        {isUser ? (
-          <div className="h-7 w-7 md:h-8 md:w-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold text-xs md:text-sm">
-            U
-          </div>
-        ) : (
-          <div className="h-7 w-7 md:h-8 md:w-8 rounded-full bg-secondary flex items-center justify-center text-secondary-foreground font-semibold text-xs md:text-sm">
-            AI
-          </div>
-        )}
-      </div>
-      <div className="flex-1 min-w-0 overflow-hidden">
-        <div className="prose prose-sm dark:prose-invert max-w-none">
+    <div className={cn(
+      "group w-full border-b border-black/5 dark:border-white/5",
+      isUser ? "bg-white dark:bg-[#343541]" : "bg-gray-50/50 dark:bg-[#444654]"
+    )}>
+      <div className="mx-auto max-w-3xl p-4 md:py-6 flex gap-4 md:gap-6">
+        <div className="shrink-0 flex flex-col items-center pt-1">
           {isUser ? (
-            <p className="text-foreground whitespace-pre-wrap break-words">
-              {message.content}
-            </p>
+            <div className="h-8 w-8 rounded-sm bg-purple-500/10 flex items-center justify-center">
+              <User className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+            </div>
           ) : (
-            <div>
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  pre: ({ children }: any) => {
-                    // Extract code from pre > code structure
-                    const codeElement = React.Children.toArray(children).find(
-                      (child: any) => child?.type === 'code'
-                    ) as any
-    
-                    if (codeElement?.props) {
-                      const { className, children: codeChildren } = codeElement.props
-                      const match = /language-(\w+)/.exec(className || '')
-                      const language = match ? match[1] : ''
-                      const codeString = Array.isArray(codeChildren)
-                        ? codeChildren.join('')
-                        : String(codeChildren).replace(/\n$/, '')
-                      
-                      if (language) {
-                        return <CodeBlock language={language} code={codeString} />
-                      }
-                    }
-                    
-                    return <pre className="bg-muted rounded-lg p-4 my-4 overflow-x-auto">{children}</pre>
-                  },
-                  code({ node, inline, className, children, ...props }: any) {
-                    // Only handle inline code here, block code is handled by pre component
-                    if (inline) {
-                      return (
-                        <code className={cn('bg-muted px-1.5 py-0.5 rounded text-sm', className)} {...props}>
-                          {children}
-                        </code>
-                      )
-                    }
-                    // For block code, return as-is (pre component will handle it)
-                    return (
-                      <code className={className} {...props}>
-                        {children}
-                      </code>
-                    )
-                  },
-                  p: ({ children }: any) => <p className="mb-4 last:mb-0">{children}</p>,
-                  ul: ({ children }: any) => <ul className="mb-4 list-disc pl-6">{children}</ul>,
-                  ol: ({ children }: any) => <ol className="mb-4 list-decimal pl-6">{children}</ol>,
-                  li: ({ children }: any) => <li className="mb-1">{children}</li>,
-                  h1: ({ children }: any) => <h1 className="text-2xl font-bold mb-4 mt-6">{children}</h1>,
-                  h2: ({ children }: any) => <h2 className="text-xl font-bold mb-3 mt-5">{children}</h2>,
-                  h3: ({ children }: any) => <h3 className="text-lg font-bold mb-2 mt-4">{children}</h3>,
-                  blockquote: ({ children }: any) => (
-                    <blockquote className="border-l-4 border-muted-foreground/30 pl-4 italic my-4">
-                      {children}
-                    </blockquote>
-                  ),
-                  a: ({ children, href }: any) => (
-                    <a href={href} className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">
-                      {children}
-                    </a>
-                  ),
-                }}
-              >
-                {message.content}
-              </ReactMarkdown>
-              {isStreaming && (
-                <span className="inline-block w-2 h-4 bg-foreground animate-pulse ml-1" />
-              )}
+            <div className="h-8 w-8 rounded-sm bg-green-500/10 flex items-center justify-center">
+              <Sparkles className="h-5 w-5 text-green-600 dark:text-green-400" />
             </div>
           )}
         </div>
+
+        <div className="relative flex-1 overflow-hidden min-w-0">
+          <div className="prose prose-zinc dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent">
+            {isUser ? (
+              <div className="whitespace-pre-wrap text-zinc-800 dark:text-zinc-100">{message.content}</div>
+            ) : (
+              <MarkdownContent content={message.content} isStreaming={isStreaming} />
+            )}
+          </div>
+        </div>
+
+        {!isUser && !isStreaming && (
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-start mt-1">
+            <button
+              onClick={copyToClipboard}
+              className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+              title="Copy message"
+            >
+              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
-}
-
+})

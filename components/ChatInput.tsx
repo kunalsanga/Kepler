@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { Send } from 'lucide-react'
+import { Send, ArrowUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface ChatInputProps {
@@ -11,10 +11,10 @@ interface ChatInputProps {
   placeholder?: string
 }
 
-export function ChatInput({ 
-  onSend, 
+export function ChatInput({
+  onSend,
   disabled = false,
-  placeholder = "Type your message..."
+  placeholder = "Message Kepler AI..."
 }: ChatInputProps) {
   const [input, setInput] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -23,7 +23,7 @@ export function ChatInput({
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`
     }
   }, [input])
 
@@ -46,37 +46,41 @@ export function ChatInput({
   }
 
   return (
-    <div className="border-t border-border bg-background shrink-0">
-      <form onSubmit={handleSubmit} className="flex items-end gap-2 p-2 md:p-4">
-        <div className="flex-1 relative min-w-0">
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={placeholder}
-            disabled={disabled}
-            rows={1}
-            className={cn(
-              "w-full resize-none rounded-lg border border-input bg-background px-3 md:px-4 py-2 md:py-3",
-              "text-sm md:text-base ring-offset-background placeholder:text-muted-foreground",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-              "disabled:cursor-not-allowed disabled:opacity-50",
-              "max-h-[150px] md:max-h-[200px] overflow-y-auto"
-            )}
-          />
-        </div>
+    <div className="w-full relative">
+      <form
+        onSubmit={handleSubmit}
+        className="relative flex items-end gap-2 p-3 border border-black/10 dark:border-white/10 bg-white dark:bg-[#40414f] rounded-xl shadow-md dark:shadow-none focus-within:ring-1 focus-within:ring-black/10 dark:focus-within:ring-white/10 transition-all"
+      >
+        <textarea
+          ref={textareaRef}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          disabled={disabled}
+          rows={1}
+          className={cn(
+            "flex-1 max-h-[200px] min-h-[24px] py-1 px-1 bg-transparent border-none resize-none",
+            "text-base focus:ring-0 focus:outline-none placeholder:text-zinc-400 dark:placeholder:text-zinc-500",
+            "text-zinc-800 dark:text-zinc-100 scrollbar-hide"
+          )}
+          style={{ overflowY: 'hidden' }}
+        />
         <Button
           type="submit"
           disabled={!input.trim() || disabled}
           size="icon"
-          className="h-9 w-9 md:h-10 md:w-10 flex-shrink-0"
+          className={cn(
+            "h-8 w-8 rounded-lg transition-colors flex-shrink-0 mb-0.5",
+            input.trim()
+              ? "bg-black dark:bg-green-500 hover:bg-black/80 dark:hover:bg-green-600 text-white"
+              : "bg-transparent text-zinc-300 dark:text-zinc-500 cursor-not-allowed hover:bg-transparent"
+          )}
         >
-          <Send className="h-4 w-4" />
+          <ArrowUp className="h-5 w-5" />
           <span className="sr-only">Send message</span>
         </Button>
       </form>
     </div>
   )
 }
-

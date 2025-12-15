@@ -1,59 +1,46 @@
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Sparkles, Zap, Shield } from 'lucide-react'
+import { Sparkles, ArrowRight } from 'lucide-react'
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4 md:p-8">
-      <div className="text-center space-y-6 md:space-y-8 max-w-3xl w-full">
-        <div className="flex justify-center">
-          <div className="relative">
-            <Sparkles className="h-16 w-16 md:h-20 md:w-20 text-primary" />
-            <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full" />
+    <div className="flex min-h-screen flex-col items-center justify-center bg-background text-foreground p-4">
+      <div className="text-center space-y-6 max-w-2xl w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="flex justify-center mb-6">
+          <div className="h-16 w-16 bg-black dark:bg-white rounded-2xl flex items-center justify-center shadow-2xl rotate-3 transition-transform hover:rotate-6">
+            <Sparkles className="h-8 w-8 text-white dark:text-black" />
           </div>
         </div>
-        
-        <div className="space-y-3 md:space-y-4">
-          <h1 className="text-3xl md:text-5xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+
+        <div className="space-y-4">
+          <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
             Kepler AI
           </h1>
-          <p className="text-base md:text-xl text-muted-foreground max-w-xl mx-auto">
-            Intelligent conversations powered by advanced language models. 
-            Experience seamless AI interactions with privacy and control.
+          <p className="text-lg md:text-xl text-zinc-500 dark:text-zinc-400 max-w-md mx-auto leading-relaxed">
+            Your intelligent creative companion.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 pt-4 md:pt-6">
-          <div className="flex flex-col items-center p-4 rounded-lg bg-muted/30">
-            <Zap className="h-6 w-6 md:h-8 md:w-8 text-primary mb-2" />
-            <h3 className="font-semibold text-sm md:text-base mb-1">Fast & Responsive</h3>
-            <p className="text-xs md:text-sm text-muted-foreground text-center">
-              Real-time streaming responses
-            </p>
-          </div>
-          <div className="flex flex-col items-center p-4 rounded-lg bg-muted/30">
-            <Shield className="h-6 w-6 md:h-8 md:w-8 text-primary mb-2" />
-            <h3 className="font-semibold text-sm md:text-base mb-1">Private & Secure</h3>
-            <p className="text-xs md:text-sm text-muted-foreground text-center">
-              Your data stays under your control
-            </p>
-          </div>
-          <div className="flex flex-col items-center p-4 rounded-lg bg-muted/30">
-            <Sparkles className="h-6 w-6 md:h-8 md:w-8 text-primary mb-2" />
-            <h3 className="font-semibold text-sm md:text-base mb-1">Powerful AI</h3>
-            <p className="text-xs md:text-sm text-muted-foreground text-center">
-              Advanced language understanding
-            </p>
-          </div>
-        </div>
-
-        <div className="pt-4 md:pt-6">
+        <div className="pt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
           <Link href="/chat">
-            <Button size="lg" className="text-base md:text-lg px-6 md:px-8 py-6 md:py-7 w-full md:w-auto">
-              Get Started
+            <Button size="lg" className="rounded-full text-base px-8 py-6 h-auto gap-2 bg-black hover:bg-black/80 dark:bg-white dark:hover:bg-white/90 dark:text-black">
+              Start Chatting <ArrowRight className="h-4 w-4" />
             </Button>
           </Link>
+          <a
+            href="https://github.com/kunalsanga/Kepler"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Button variant="ghost" size="lg" className="rounded-full text-base px-6 py-6 h-auto text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100">
+              View on GitHub
+            </Button>
+          </a>
         </div>
+      </div>
+
+      <div className="absolute bottom-6 text-center text-xs text-zinc-400 dark:text-zinc-600">
+        Built with Next.js & Ollama
       </div>
     </div>
   )
