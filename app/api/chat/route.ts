@@ -15,9 +15,11 @@ export async function POST(req: NextRequest) {
           "Content-Type": "application/json",
           "Authorization": "Bearer test",
           // FORCE this header for ngrok
-          "ngrok-skip-browser-warning": "true"
+          "ngrok-skip-browser-warning": "true",
+          "User-Agent": "Mozilla/5.0 (Vercel Serverless Function)"
         },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
+        cache: "no-store"
       }
     );
 
