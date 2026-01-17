@@ -15,6 +15,7 @@ interface ChatListProps {
 export function ChatList({ messages, isStreaming = false }: ChatListProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [showScrollButton, setShowScrollButton] = useState(false)
+  const isTouchingRef = useRef(false)
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true)
 
   // Handle scroll events to determine if we should auto-scroll
@@ -22,22 +23,40 @@ export function ChatList({ messages, isStreaming = false }: ChatListProps) {
     if (!scrollRef.current) return
 
     const { scrollTop, scrollHeight, clientHeight } = scrollRef.current
-    const isAtBottom = scrollHeight - scrollTop - clientHeight < 100
+    // Stricter check: only auto-scroll if very close to bottom
+    const isAtBottom = scrollHeight - scrollTop - clientHeight < 150
 
-    // Update auto-scroll state based on user position
-    setShouldAutoScroll(isAtBottom)
-    setShowScrollButton(!isAtBottom)
+    // If user has scrolled away from bottom, stop auto-scrolling immediately
+    // usage: Even if they are still dragging (touching), we want to respect their intent to view history
+    if (!isAtBottom) {
+      setShouldAutoScroll(false)
+      setShowScrollButton(true)
+    }
+    // If they are at the bottom, we can re-enable auto-scroll
+    // BUT only if they are not currently holding the screen (to prevent fighting)
+    else if (!isTouchingRef.current) {
+      setShouldAutoScroll(true)
+      setShowScrollButton(false)
+    }
   }
 
   // Auto-scroll effect
   useEffect(() => {
-    if (shouldAutoScroll && scrollRef.current) {
+    // Determine if we *can* scroll (state says yes, and user isn't holding the screen)
+    if (shouldAutoScroll && !isTouchingRef.current && scrollRef.current) {
       scrollRef.current.scrollTo({
         top: scrollRef.current.scrollHeight,
-        behavior: 'instant' // Use instant for streaming to avoid "shaking"
+        behavior: 'instant'
       })
     }
   }, [messages, isStreaming, shouldAutoScroll])
+
+  const handleTouchStart = () => { isTouchingRef.current = true }
+  const handleTouchEnd = () => {
+    isTouchingRef.current = false
+    // Re-evaluate scroll position after touch ends
+    handleScroll()
+  }
 
   const scrollToBottom = () => {
     if (scrollRef.current) {
@@ -65,6 +84,8 @@ export function ChatList({ messages, isStreaming = false }: ChatListProps) {
       <div
         ref={scrollRef}
         onScroll={handleScroll}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
         className="h-full w-full overflow-y-auto scrollbar-hide px-2 md:px-0"
       >
         <div className="flex flex-col min-h-full pb-4">

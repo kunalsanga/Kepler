@@ -5,6 +5,7 @@ import { ChatList } from '@/components/ChatList'
 import { ChatInput } from '@/components/ChatInput'
 import { Sidebar } from '@/components/Sidebar'
 import { Message, streamLLMResponse, parseStreamChunk, extractContent } from '@/lib/llm'
+import { generateImage, generateVideo, pollJobStatus, parseGenerationCommand } from '@/lib/generation'
 import { Button } from '@/components/ui/button'
 import { Menu, Zap } from 'lucide-react'
 
@@ -15,15 +16,97 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const handleSend = useCallback(async (content: string) => {
+    // Check for generation commands in user message
+    const genCommand = parseGenerationCommand(content)
+
+    if (genCommand.type) {
+      // Handle generation command
+      const userMessage: Message = { role: 'user', content, type: 'text' }
+      const newMessages = [...messages, userMessage]
+      setMessages(newMessages)
+      setIsStreaming(true)
+      setError(null)
+
+      try {
+        let job
+        if (genCommand.type === 'image') {
+          job = await generateImage(genCommand.prompt)
+        } else {
+          job = await generateVideo(genCommand.prompt)
+        }
+
+        // Add assistant message with generation status
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: `Generating ${genCommand.type}...`,
+          type: genCommand.type as 'image' | 'video',
+          generationJobId: job.jobId,
+          generationType: genCommand.type,
+        }
+        setMessages([...newMessages, assistantMessage])
+
+        // Poll for completion
+        const pollInterval = setInterval(async () => {
+          try {
+            const status = await pollJobStatus(job.jobId, genCommand.type!)
+
+            setMessages(prev => {
+              const updatedMessages = [...prev]
+              const msgIndex = updatedMessages.findIndex(m => m.generationJobId === job.jobId)
+
+              if (msgIndex >= 0) {
+                updatedMessages[msgIndex] = {
+                  ...updatedMessages[msgIndex],
+                  content: status.status === 'completed'
+                    ? '' // Clear text for completed images to show only the image
+                    : `Generating ${genCommand.type}...`,
+                  type: genCommand.type as 'image' | 'video',
+                  imageUrl: genCommand.type === 'image' ? status.url : undefined,
+                  videoUrl: genCommand.type === 'video' ? status.url : undefined,
+                }
+              }
+              return updatedMessages
+            })
+
+            if (status.status === 'completed' || status.status === 'failed') {
+              clearInterval(pollInterval)
+              setIsStreaming(false)
+            }
+          } catch (err) {
+            console.error('Polling error:', err)
+            clearInterval(pollInterval)
+            setIsStreaming(false)
+          }
+        }, 2000)
+
+        // Timeout after 2 minutes
+        setTimeout(() => {
+          clearInterval(pollInterval)
+          setIsStreaming(false)
+        }, 120000)
+
+      } catch (err) {
+        console.error('Generation error:', err)
+        let errorMessage = `Failed to generate ${genCommand.type}`
+        if (err instanceof Error) {
+          errorMessage = err.message
+        }
+        setError(errorMessage)
+        setIsStreaming(false)
+      }
+      return
+    }
+
+    // Regular chat flow
     // Add user message
-    const userMessage: Message = { role: 'user', content }
+    const userMessage: Message = { role: 'user', content, type: 'text' }
     const newMessages = [...messages, userMessage]
     setMessages(newMessages)
     setIsStreaming(true)
     setError(null)
 
     // Add empty assistant message that will be updated as stream arrives
-    const assistantMessage: Message = { role: 'assistant', content: '' }
+    const assistantMessage: Message = { role: 'assistant', content: '', type: 'text' }
     setMessages([...newMessages, assistantMessage])
 
     try {
@@ -33,6 +116,7 @@ export default function ChatPage() {
 
       let buffer = ''
       let accumulatedContent = ''
+      let generationTriggered = false
 
       while (true) {
         const { done, value } = await reader.read()
@@ -58,7 +142,98 @@ export default function ChatPage() {
               const content = extractContent(chunk)
               if (content) {
                 accumulatedContent += content
-                setMessages([...newMessages, { role: 'assistant', content: accumulatedContent }])
+
+                // Check if LLM response contains generation request - ONLY if not triggered yet
+                if (!generationTriggered) {
+                  const responseGenCommand = parseGenerationCommand(accumulatedContent)
+                  if (responseGenCommand.type && !responseGenCommand.prompt.includes('can you')) {
+                    // LLM is suggesting generation, trigger it
+                    const prompt = responseGenCommand.prompt || content
+                    if (prompt.length > 3) {
+                      generationTriggered = true // Prevent multiple triggers
+
+                      // Trigger generation in background
+                      setTimeout(async () => {
+                        try {
+                          let job
+                          if (responseGenCommand.type === 'image') {
+                            job = await generateImage(prompt)
+                          } else {
+                            job = await generateVideo(prompt)
+                          }
+
+                          const genMessage: Message = {
+                            role: 'assistant',
+                            content: `Generating ${responseGenCommand.type}...`,
+                            type: responseGenCommand.type as 'image' | 'video',
+                            generationJobId: job.jobId,
+                            generationType: responseGenCommand.type!,
+                          }
+
+                          setMessages(prev => [...prev, genMessage])
+
+                          // Poll for completion
+                          const pollInterval = setInterval(async () => {
+                            try {
+                              const status = await pollJobStatus(job.jobId, responseGenCommand.type!)
+                              setMessages(prev => {
+                                const updated = [...prev]
+                                const idx = updated.findIndex(m => m.generationJobId === job.jobId)
+                                if (idx >= 0) {
+                                  updated[idx] = {
+                                    ...updated[idx],
+                                    content: status.status === 'completed'
+                                      ? ''
+                                      : `Generating ${responseGenCommand.type}...`,
+                                    type: responseGenCommand.type as 'image' | 'video',
+                                    imageUrl: responseGenCommand.type === 'image' ? status.url : undefined,
+                                    videoUrl: responseGenCommand.type === 'video' ? status.url : undefined,
+                                  }
+                                }
+                                return updated
+                              })
+
+                              if (status.status === 'completed' || status.status === 'failed') {
+                                clearInterval(pollInterval)
+                              }
+                            } catch (err) {
+                              console.error('Polling error:', err)
+                              clearInterval(pollInterval)
+                            }
+                          }, 2000)
+
+                          setTimeout(() => clearInterval(pollInterval), 120000)
+                        } catch (err) {
+                          console.error('Generation error:', err)
+                        }
+                      }, 1000)
+                    }
+                  }
+                }
+
+                // Update text message using functional update to avoid clobbering generation messages
+                setMessages(prev => {
+                  const updated = [...prev]
+                  // The assistant text message is the one after the user message (which is at newMessages.length - 1)
+                  // So assistant message index is newMessages.length (since newMessages includes the new user message)
+                  // But wait, initially we added a placeholder assistant message at `newMessages.length`
+                  // in line 106: setMessages([...newMessages, assistantMessage])
+
+                  const assistantMsgIndex = newMessages.length
+
+                  if (updated[assistantMsgIndex]) {
+                    updated[assistantMsgIndex] = {
+                      ...updated[assistantMsgIndex],
+                      content: accumulatedContent
+                    }
+                  } else {
+                    // Should be there, but fallback
+                    if (updated.length === assistantMsgIndex) {
+                      updated.push({ role: 'assistant', content: accumulatedContent })
+                    }
+                  }
+                  return updated
+                })
               }
             }
           }

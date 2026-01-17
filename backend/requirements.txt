@@ -1,0 +1,8 @@
+fastapi==0.109.2
+uvicorn==0.27.1
+requests==2.31.0
+websockets==12.0
+pydantic==2.6.1
+python-multipart==0.0.9
+websocket-client==1.7.0
+data-uri==0.1.0

@@ -5,46 +5,86 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    const { messages } = await req.json()
 
-    const response = await fetch(
-      `${process.env.LLM_BASE_URL}/chat/completions`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer test",
-          // FORCE this header for ngrok
-          "ngrok-skip-browser-warning": "true",
-          "User-Agent": "Mozilla/5.0 (Vercel Serverless Function)"
-        },
-        body: JSON.stringify(body),
-        cache: "no-store"
-      }
-    );
+    // Debug: Log environment variable
+    console.log('[DEBUG] LOCAL_LLM_URL from env:', process.env.LOCAL_LLM_URL)
+    console.log('[DEBUG] All env vars:', Object.keys(process.env).filter(k => k.includes('LLM')))
 
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`Upstream LLM error: ${text}`);
+    // 1. Validate environment variable with explicit fallback for debugging
+    const localLLMUrl = process.env.LOCAL_LLM_URL || 'http://127.0.0.1:11434'
+    if (!localLLMUrl) {
+      return NextResponse.json(
+        { error: 'LOCAL_LLM_URL is not set in environment variables.' },
+        { status: 500 }
+      )
     }
 
-    // Streaming support logic - if the user wants streaming, we shouldn't await .json()
-    // However, the user specifically requested: "const data = await response.json(); return Response.json(data);"
-    // This disables streaming. I will provide EXACTLY what was asked to ensure the connection works first.
-    // If they want streaming back later, we can add it.
+    // 2. Construct the target URL (OpenAI-compatible endpoint)
+    // Ensure no double slashes if env var has trailing slash
+    const baseUrl = localLLMUrl.replace(/\/$/, '')
+    const targetUrl = `${baseUrl}/v1/chat/completions`
 
-    // Actually, checking the user request again:
-    // They asked for:
-    // const data = await response.json();
-    // return Response.json(data);
+    console.log(`[Proxy] Forwarding request to: ${targetUrl}`)
 
-    const data = await response.json();
-    return NextResponse.json(data);
+    // Add system prompt if not present
+    const systemPrompt = {
+      role: 'system',
+      content: 'You are Kepler AI, an advanced AI assistant with the ability to generate images and videos. When users ask to generate images or videos, respond positively and acknowledge their request. The system will automatically handle generation.'
+    }
+    
+    // Check if system message already exists
+    const hasSystemMessage = messages.some((m: any) => m.role === 'system')
+    const finalMessages = hasSystemMessage ? messages : [systemPrompt, ...messages]
 
-  } catch (err: any) {
-    return new Response(
-      JSON.stringify({ error: err.message }),
+    // 3. Forward the request
+    const response = await fetch(targetUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'qwen2.5', // Default model, or could be dynamic
+        messages: finalMessages,
+        stream: true, // Output will remain SSE compatible
+      }),
+    })
+
+    // 4. Handle upstream errors
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`[Proxy] Upstream error (${response.status}): ${errorText}`)
+      return NextResponse.json(
+        { error: `Upstream LLM error: ${response.statusText}`, details: errorText },
+        { status: response.status }
+      )
+    }
+
+    // 5. Stream the response back
+    // Since we are targeting /v1/chat/completions, the output is already SSE.
+    // We can pipe it directly to the client.
+    return new Response(response.body, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
+    })
+
+  } catch (error: any) {
+    console.error('[Proxy] Internal Server Error:', error)
+    // Detailed error logging for debugging
+    if (error.cause) console.error('[Proxy] Cause:', error.cause)
+    if (error.stack) console.error('[Proxy] Stack:', error.stack)
+
+    return NextResponse.json(
+      {
+        error: 'Internal Server Error',
+        details: error.message,
+        suggestion: error.message.includes('fetch') ? 'Check if Ollama is running at ' + process.env.LOCAL_LLM_URL : undefined
+      },
       { status: 500 }
-    );
+    )
   }
 }
+

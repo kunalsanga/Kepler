@@ -64,7 +64,7 @@ export function CodeBlock({ language, value }: CodeBlockProps) {
   // The 'key' trick forces a re-render if needed, but here simple conditional is enough.
 
   return (
-    <div className="my-4 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-800 shadow-sm bg-[#0d1117] text-white">
+    <div className="my-2 md:my-4 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-800 shadow-sm bg-[#0d1117] text-white max-w-[85vw] md:max-w-none">
       <div className="flex items-center justify-between px-3 py-2 bg-white/5 border-b border-white/5">
         <div className="flex items-center gap-2">
           <span className="text-xs font-mono text-zinc-400 lowercase">{language || 'text'}</span>
@@ -90,11 +90,11 @@ export function CodeBlock({ language, value }: CodeBlockProps) {
       <div className="relative">
         {html ? (
           <div
-            className="p-4 overflow-x-auto text-sm font-mono [&>pre]:!bg-transparent [&>pre]:!m-0"
+            className="p-3 md:p-4 overflow-x-auto text-xs md:text-sm font-mono [&>pre]:!bg-transparent [&>pre]:!m-0"
             dangerouslySetInnerHTML={{ __html: html }}
           />
         ) : (
-          <pre className="p-4 overflow-x-auto text-sm font-mono text-zinc-300">
+          <pre className="p-3 md:p-4 overflow-x-auto text-xs md:text-sm font-mono text-zinc-300">
             <code>{value}</code>
           </pre>
         )}

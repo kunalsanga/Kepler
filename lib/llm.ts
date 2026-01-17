@@ -6,6 +6,11 @@
 export interface Message {
   role: 'user' | 'assistant' | 'system'
   content: string
+  type?: 'text' | 'image' | 'video'
+  imageUrl?: string
+  videoUrl?: string
+  generationJobId?: string
+  generationType?: 'image' | 'video'
 }
 
 export interface StreamChunk {
@@ -79,7 +84,7 @@ export async function streamLLMResponse(
 export function parseStreamChunk(chunk: string): StreamChunk | null {
   // Remove 'data: ' prefix if present
   const cleaned = chunk.replace(/^data: /, '').trim()
-  
+
   // Skip empty chunks or [DONE] marker
   if (!cleaned || cleaned === '[DONE]') {
     return null

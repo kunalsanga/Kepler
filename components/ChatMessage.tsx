@@ -8,6 +8,7 @@ import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
 import { User, Sparkles, Copy, Check } from 'lucide-react'
 import { CodeBlock } from '@/components/CodeBlock'
+import { MediaDisplay } from '@/components/MediaDisplay'
 
 interface ChatMessageProps {
   message: Message
@@ -21,6 +22,24 @@ const MarkdownContent = React.memo(({ content, isStreaming }: { content: string,
       remarkPlugins={[remarkGfm]}
       rehypePlugins={[rehypeRaw]}
       components={{
+        table({ children, className, ...props }: any) {
+          return (
+            <div className="overflow-x-auto my-4 border rounded-lg border-black/10 dark:border-white/10">
+              <table className={cn("w-full text-left text-sm", className)} {...props}>
+                {children}
+              </table>
+            </div>
+          )
+        },
+        thead({ children, ...props }: any) {
+          return <thead className="bg-black/5 dark:bg-white/5" {...props}>{children}</thead>
+        },
+        th({ children, ...props }: any) {
+          return <th className="px-4 py-2 font-medium border-b border-black/10 dark:border-white/10" {...props}>{children}</th>
+        },
+        td({ children, ...props }: any) {
+          return <td className="px-4 py-2 border-b border-black/5 dark:border-white/5 last:border-0" {...props}>{children}</td>
+        },
         code({ node, inline, className, children, ...props }: any) {
           const match = /language-(\w+)/.exec(className || '')
           const language = match ? match[1] : ''
@@ -56,6 +75,18 @@ export const ChatMessage = React.memo(function ChatMessage({ message, isStreamin
   const isUser = message.role === 'user'
   const [copied, setCopied] = React.useState(false)
 
+  // Debug logging
+  console.log('ChatMessage render:', {
+    role: message.role,
+    type: message.type,
+    hasImageUrl: !!message.imageUrl,
+    url: message.imageUrl,
+    content: message.content
+  })
+
+  // Fix: Force re-render if we have an image URL but type isn't image (just in case)
+  // or verify type is correct.
+
   const copyToClipboard = async () => {
     try {
       await navigator.clipboard.writeText(message.content)
@@ -71,7 +102,7 @@ export const ChatMessage = React.memo(function ChatMessage({ message, isStreamin
       "group w-full border-b border-black/5 dark:border-white/5",
       isUser ? "bg-white dark:bg-[#343541]" : "bg-gray-50/50 dark:bg-[#444654]"
     )}>
-      <div className="mx-auto max-w-3xl p-4 md:py-6 flex gap-4 md:gap-6">
+      <div className="mx-auto max-w-3xl p-3 md:py-6 flex gap-3 md:gap-6">
         <div className="shrink-0 flex flex-col items-center pt-1">
           {isUser ? (
             <div className="h-8 w-8 rounded-sm bg-purple-500/10 flex items-center justify-center">
@@ -85,6 +116,30 @@ export const ChatMessage = React.memo(function ChatMessage({ message, isStreamin
         </div>
 
         <div className="relative flex-1 overflow-hidden min-w-0">
+          {message.type === 'image' && (
+            message.imageUrl ? (
+              <div className="my-4">
+                <img
+                  src={message.imageUrl}
+                  alt="Generated content"
+                  className="rounded-lg max-w-full h-auto shadow-sm border border-black/5 dark:border-white/5"
+                />
+              </div>
+            ) : (
+              <MediaDisplay
+                type="image"
+                url={undefined}
+                status="processing"
+              />
+            )
+          )}
+          {message.type === 'video' && (
+            <MediaDisplay
+              type="video"
+              url={message.videoUrl}
+              status={message.videoUrl ? 'completed' : 'processing'}
+            />
+          )}
           <div className="prose prose-zinc dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent">
             {isUser ? (
               <div className="whitespace-pre-wrap text-zinc-800 dark:text-zinc-100">{message.content}</div>

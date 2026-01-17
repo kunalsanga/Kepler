@@ -1,148 +1,119 @@
-# 🚀 Quick Start Deployment Guide
+# Quick Start Guide
 
-Fast deployment guide for production.
+## 🚀 Fastest Way to Run (Text Chat Only)
 
-## Prerequisites Checklist
-
-- [ ] GitHub account
-- [ ] Vercel account (free tier works)
-- [ ] Cloud GPU provider account (RunPod/Vast.ai)
-- [ ] Model downloaded or access to HuggingFace
-
----
-
-## ⚡ 5-Minute Deployment
-
-### Step 1: Deploy Website (2 minutes)
-
+### 1. Install Dependencies
 ```bash
-# 1. Push to GitHub
-git init
-git add .
-git commit -m "Deploy to production"
-git remote add origin https://github.com/YOUR_USERNAME/kepler-chat.git
-git push -u origin main
-
-# 2. Go to vercel.com → Import repository → Deploy
-# 3. Add environment variable: LLM_API_URL=http://YOUR_SERVER_IP:8000
+npm install
 ```
 
-### Step 2: Deploy vLLM (3 minutes)
-
-```bash
-# On your GPU server (RunPod/Vast.ai)
-ssh root@YOUR_SERVER_IP
-
-# Run deployment script
-chmod +x scripts/deploy-vllm.sh
-./scripts/deploy-vllm.sh Qwen/Qwen2.5-7B-Instruct 8000
-
-# Wait for model download (10-30 min)
-# Server will auto-start when ready
+### 2. Create `.env.local`
+Create a file named `.env.local` in the root directory:
+```env
+LOCAL_LLM_URL=http://127.0.0.1:11434
 ```
 
-### Step 3: Connect & Test
-
+### 3. Start Ollama
+Make sure Ollama is running:
 ```bash
-# Update Vercel environment variable with your server IP
-# Then redeploy
-
-# Test from your local machine
-./scripts/test-vllm.sh YOUR_SERVER_IP 8000
+ollama serve
 ```
 
-**Done!** Your app is live at `https://your-project.vercel.app`
-
----
-
-## 🔧 Manual Setup (If Scripts Don't Work)
-
-### On GPU Server:
-
+### 4. Start Next.js
 ```bash
-# Install
-apt update && apt install -y python3-pip
-pip3 install vllm
-
-# Download model
-mkdir -p /root/models
-cd /root/models
-huggingface-cli download Qwen/Qwen2.5-7B-Instruct --local-dir Qwen2.5-7B-Instruct
-
-# Start server
-screen -S vllm
-vllm serve /root/models/Qwen2.5-7B-Instruct --host 0.0.0.0 --port 8000 --openai-api
-# Press Ctrl+A, then D to detach
+npm run dev
 ```
 
-### Update API Route:
+### 5. Open Browser
+Go to: **http://localhost:3000**
 
-If using vLLM, replace `app/api/chat/route.ts` with `app/api/chat/route.vllm.ts`:
+**Done!** You can now chat with Qwen-2.5.
 
-```bash
-cp app/api/chat/route.vllm.ts app/api/chat/route.ts
+---
+
+## 🎨 Full Setup (Text + Image + Video)
+
+### Step 1: Environment Variables
+Create `.env.local`:
+```env
+LOCAL_LLM_URL=http://127.0.0.1:11434
+COMFYUI_URL=http://localhost:8188
+COGVIDEO_URL=http://localhost:7860
 ```
 
----
+### Step 2: Setup Services
 
-## 📋 Environment Variables
+**Option A: Use the batch script (Windows)**
+```batch
+START_ALL_SERVICES.bat
+```
 
-### Vercel:
-- `LLM_API_URL`: `http://YOUR_SERVER_IP:8000`
-- `LLM_API_KEY`: (optional) Your vLLM API key
-- `LLM_MODEL_NAME`: (optional) Model name, default: `Qwen2.5-7B-Instruct`
+**Option B: Manual setup**
 
----
+1. **Setup ComfyUI:**
+   ```powershell
+   .\scripts\setup-comfyui.ps1
+   ```
+   Then download a model to `ComfyUI/models/checkpoints/`
 
-## ✅ Verification
+2. **Setup CogVideo:**
+   ```powershell
+   .\scripts\setup-cogvideo.ps1
+   ```
 
-1. **Website**: Visit `https://your-project.vercel.app` → Should load
-2. **vLLM**: `curl http://YOUR_SERVER_IP:8000/v1/models` → Should return models
-3. **End-to-end**: Send message in chat → Should get response
+### Step 3: Start Everything
 
----
+**Windows:**
+```batch
+START_ALL_SERVICES.bat
+```
 
-## 🆘 Troubleshooting
+**Manual (4 terminals):**
+- Terminal 1: `ollama serve`
+- Terminal 2: `cd ComfyUI && python main.py --port 8188 --lowvram`
+- Terminal 3: `cd CogVideo && python -m cogvideo.cli.api --port 7860 --low-resource-mode`
+- Terminal 4: `npm run dev`
 
-**Website shows connection error:**
-- Check `LLM_API_URL` in Vercel settings
-- Verify server IP is correct
-- Ensure port 8000 is open
+### Step 4: Test
 
-**vLLM not responding:**
-- Check if running: `screen -r vllm`
-- Check logs: `screen -r vllm` (inside screen)
-- Verify model path is correct
-
-**Model download fails:**
-- Check disk space: `df -h`
-- Verify HuggingFace access
-- Try downloading smaller model first
-
----
-
-## 💰 Cost Estimate
-
-- **Vercel**: Free (up to 100GB bandwidth)
-- **GPU Server**: $0.20-0.50/hour = $150-360/month (24/7)
-- **Total**: ~$150-360/month
-
-**Save money**: Stop server when not in use!
+1. Open **http://localhost:3000**
+2. Try text: "Hello!"
+3. Try image: `/image a cat playing piano`
+4. Try video: `/video a sunset over mountains`
 
 ---
 
-## 📚 Full Documentation
+## 📝 Commands in Chat
 
-See `DEPLOYMENT.md` for complete guide with:
-- Detailed setup instructions
-- Security best practices
-- Docker deployment
-- Monitoring & logging
-- Cost optimization
+### Image Generation
+- `/image [your prompt]`
+- `generate image: [your prompt]`
+
+### Video Generation
+- `/video [your prompt]`
+- `generate video: [your prompt]`
 
 ---
 
-## 🎉 You're Live!
+## ⚠️ Troubleshooting
 
-Your production deployment is complete. Share your URL and start chatting! 🚀
+**"Connection refused"**
+- Check if services are running
+- Verify ports: 11434 (Ollama), 8188 (ComfyUI), 7860 (CogVideo)
 
+**ComfyUI/CogVideo not working**
+- Make sure you ran the setup scripts
+- Check if models are downloaded
+- Verify GPU has enough VRAM (6GB minimum)
+
+**Next.js errors**
+- Run `npm install`
+- Delete `.next` folder and restart
+
+---
+
+## 📚 More Help
+
+- Full guide: `HOW_TO_RUN.md`
+- Setup details: `GENERATION_SETUP.md`
+- Architecture: `MVP_EXTENSION_DESIGN.md`
