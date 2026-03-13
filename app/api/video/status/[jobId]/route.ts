@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getJobStatus } from '@/lib/cogvideo'
+import { getJobStatus } from '@/lib/comfyui'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'

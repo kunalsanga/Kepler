@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { generateVideo } from '@/lib/cogvideo'
+import { generateVideo } from '@/lib/comfyui'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   try {
-    const { prompt, frames } = await req.json()
+    const { prompt } = await req.json()
 
     if (!prompt) {
       return NextResponse.json(
@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const result = await generateVideo(prompt, frames || 8)
+    const result = await generateVideo(prompt)
 
     return NextResponse.json(result)
   } catch (error: any) {

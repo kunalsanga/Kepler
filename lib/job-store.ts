@@ -13,7 +13,12 @@ interface JobData {
   imageUrl?: string
   videoUrl?: string
   error?: string
+  prompt?: string
+  width?: number
+  height?: number
+  type?: 'image' | 'video'
 }
+
 
 // Use globalThis to ensure the Map persists across module reloads in Next.js
 // This works in development mode (single process) but may not work in serverless

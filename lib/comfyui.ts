@@ -10,8 +10,10 @@ export interface ComfyUIJob {
   height: number
   status: 'pending' | 'processing' | 'completed' | 'failed'
   imageUrl?: string
+  videoUrl?: string
   error?: string
   promptId?: string // ComfyUI prompt_id for tracking
+  type?: 'image' | 'video'
 }
 
 import { setJob, getJob, updateJob } from './job-store'
@@ -86,6 +88,93 @@ function createWorkflow(prompt: string, width: number, height: number, negativeP
 }
 
 /**
+ * Create a ComfyUI workflow for AnimateDiff video generation
+ */
+function createVideoWorkflow(prompt: string) {
+  const seed = Math.floor(Math.random() * 10000000000)
+
+  return {
+    "1": {
+      "class_type": "CheckpointLoaderSimple",
+      "inputs": {
+        "ckpt_name": "sd_turbo.safetensors"
+      }
+    },
+    "2": {
+      "class_type": "ADE_AnimateDiffLoaderWithContext",
+      "inputs": {
+        "model_name": "mm_sd_v15_v2.ckpt",
+        "beta_schedule": "sqrt_linear (AnimateDiff)",
+        "motion_scale": 1.0,
+        "model": ["1", 0],
+        "context_options": ["3", 0]
+      }
+    },
+    "3": {
+      "class_type": "ADE_AnimateDiffUniformContextOptions",
+      "inputs": {
+        "context_length": 16,
+        "context_stride": 1,
+        "context_overlap": 4
+      }
+    },
+    "4": {
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "text": prompt,
+        "clip": ["1", 1]
+      }
+    },
+    "5": {
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "text": "bad quality, blurry, watermark, low quality",
+        "clip": ["1", 1]
+      }
+    },
+    "6": {
+      "class_type": "EmptyLatentImage",
+      "inputs": {
+        "width": 256,
+        "height": 256,
+        "batch_size": 16
+      }
+    },
+    "7": {
+      "class_type": "KSampler",
+      "inputs": {
+        "seed": seed,
+        "steps": 12,
+        "cfg": 1.5,
+        "sampler_name": "euler_ancestral",
+        "scheduler": "karras",
+        "denoise": 1,
+        "model": ["2", 0],
+        "positive": ["4", 0],
+        "negative": ["5", 0],
+        "latent_image": ["6", 0]
+      }
+    },
+    "8": {
+      "class_type": "VAEDecode",
+      "inputs": {
+        "samples": ["7", 0],
+        "vae": ["1", 2]
+      }
+    },
+    "9": {
+      "class_type": "VHS_VideoCombine",
+      "inputs": {
+        "frame_rate": 8,
+        "format": "video/h264-mp4",
+        "filename_prefix": "AnimateDiff",
+        "images": ["8", 0]
+      }
+    }
+  }
+}
+
+/**
  * Generate image using ComfyUI
  */
 export async function generateImage(
@@ -102,6 +191,7 @@ export async function generateImage(
     width,
     height,
     status: 'pending',
+    type: 'image',
   }
   setJob(jobId, job)
 
@@ -143,7 +233,6 @@ export async function generateImage(
     const data = await response.json()
     console.log('[ComfyUI] Response data:', JSON.stringify(data, null, 2))
 
-    // ComfyUI returns { prompt_id: "..." } or might be wrapped differently
     const promptId = data.prompt_id || (Array.isArray(data) && data[0]?.prompt_id) || data[0]?.prompt_id
 
     if (!promptId) {
@@ -183,6 +272,74 @@ export async function generateImage(
 }
 
 /**
+ * Generate video using ComfyUI + AnimateDiff
+ */
+export async function generateVideo(
+  prompt: string
+): Promise<{ jobId: string; videoUrl?: string }> {
+  const jobId = `vid_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+  // Create job record
+  const job: ComfyUIJob = {
+    jobId,
+    prompt,
+    width: 256,
+    height: 256,
+    status: 'pending',
+    type: 'video',
+  }
+  setJob(jobId, job)
+
+  try {
+    // 1. Check if ComfyUI is running
+    try {
+      const healthCheck = await fetch(`${COMFYUI_URL}/system_stats`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(3000),
+      })
+      if (!healthCheck.ok) throw new Error('ComfyUI responding with error')
+    } catch (e) {
+      throw new Error(`ComfyUI is not running at ${COMFYUI_URL}. Please run START_GENERATION_SERVICES.bat`)
+    }
+
+    // 2. Submit workflow
+    const workflow = createVideoWorkflow(prompt)
+    const response = await fetch(`${COMFYUI_URL}/prompt`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: workflow }),
+    })
+
+    if (!response.ok) {
+      throw new Error(`ComfyUI Error: ${await response.text()}`)
+    }
+
+    const data = await response.json()
+    const promptId = data.prompt_id
+
+    if (!promptId) throw new Error('No prompt_id returned from ComfyUI')
+
+    // 3. Update job
+    job.status = 'processing'
+    job.promptId = promptId
+    setJob(jobId, job)
+
+    // 4. Start polling
+    pollComfyUIStatus(jobId, promptId).catch(err => {
+      console.error('[ComfyUI Video] Polling error:', err)
+      updateJob(jobId, { status: 'failed', error: err.message })
+    })
+
+    return { jobId }
+  } catch (error: any) {
+    job.status = 'failed'
+    job.error = error.message
+    setJob(jobId, job)
+    throw error
+  }
+}
+
+/**
  * Poll ComfyUI for job status
  */
 async function pollComfyUIStatus(jobId: string, promptId: string) {
@@ -215,25 +372,45 @@ async function pollComfyUIStatus(jobId: string, promptId: string) {
               console.log('[ComfyUI] Outputs:', JSON.stringify(outputs, null, 2))
 
               if (outputs) {
-                // Find image output node (SaveImage node is usually "9" in our workflow)
+                // Check for generic outputs
                 for (const nodeId in outputs) {
                   const nodeOutput = outputs[nodeId]
+
+                  // Handle Images (SaveImage)
                   if (nodeOutput.images && nodeOutput.images.length > 0) {
-                    const imageInfo = nodeOutput.images[0]
-                    const filename = imageInfo.filename
-                    const subfolder = imageInfo.subfolder || ''
-                    const type = imageInfo.type || 'output'
+                    const item = nodeOutput.images[0]
+                    const filename = item.filename
+                    const subfolder = item.subfolder || ''
+                    const type = item.type || 'output'
 
-                    // Build image URL - ComfyUI serves images via /view endpoint
-                    const imageUrl = `${COMFYUI_URL}/view?filename=${encodeURIComponent(filename)}&subfolder=${encodeURIComponent(subfolder)}&type=${type}`
+                    const ext = filename.split('.').pop()?.toLowerCase()
+                    const isVideo = ['mp4', 'webm', 'gif'].includes(ext || '')
 
-                    console.log('[ComfyUI] Found image:', imageUrl)
+                    // Construct URL
+                    const url = `${COMFYUI_URL}/view?filename=${encodeURIComponent(filename)}&subfolder=${encodeURIComponent(subfolder)}&type=${type}${isVideo ? '&format=video' : ''}`
 
-                    updateJob(jobId, {
-                      status: 'completed',
-                      imageUrl: imageUrl
-                    })
-                    console.log('[ComfyUI] Job updated:', jobId, 'status: completed', 'imageUrl:', imageUrl)
+                    const job = getJob(jobId)
+                    if (job) {
+                      updateJob(jobId, {
+                        status: 'completed',
+                        imageUrl: !isVideo ? url : undefined,
+                        videoUrl: isVideo ? url : undefined
+                      })
+                      console.log('[ComfyUI] Job completed:', jobId, 'URL:', url)
+                    }
+                    return
+                  }
+
+                  // Handle GIFs/Videos (VHS_VideoCombine)
+                  if (nodeOutput.gifs && nodeOutput.gifs.length > 0) {
+                    const item = nodeOutput.gifs[0]
+                    const filename = item.filename
+                    const subfolder = item.subfolder || ''
+                    const type = item.type || 'output'
+                    const url = `${COMFYUI_URL}/view?filename=${encodeURIComponent(filename)}&subfolder=${encodeURIComponent(subfolder)}&type=${type}`
+
+                    updateJob(jobId, { status: 'completed', videoUrl: url })
+                    console.log('[ComfyUI] Video/GIF Job completed:', jobId, 'URL:', url)
                     return
                   }
                 }
@@ -265,15 +442,16 @@ export function getJobStatus(jobId: string): ComfyUIJob | null {
   if (job) {
     return {
       jobId: job.jobId,
-      prompt: '', // Not stored in job store
-      width: 512, // Not stored in job store
-      height: 512, // Not stored in job store
+      prompt: '',
+      width: job.width || 512,
+      height: job.height || 512,
       status: job.status,
       imageUrl: job.imageUrl,
       error: job.error,
-      promptId: job.promptId
+      promptId: job.promptId,
+      type: job.type,
+      videoUrl: job.videoUrl
     }
   }
   return null
 }
-

@@ -67,6 +67,10 @@ export function MediaDisplay({ type, url, status, error }: MediaDisplayProps) {
           <video
             src={url}
             controls
+            autoPlay
+            loop
+            muted
+            playsInline
             className="max-w-full rounded-lg border border-zinc-200 dark:border-zinc-700"
             onError={(e) => {
               console.error('Video load error:', e)
