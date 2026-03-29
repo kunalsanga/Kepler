@@ -5,64 +5,26 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   try {
-    const { messages } = await req.json()
+    const payload = await req.json()
+    const gatewayUrl = process.env.AI_GATEWAY_URL || 'http://127.0.0.1:9000'
+    const targetUrl = `${gatewayUrl.replace(/\/$/, '')}/chat`
 
-    // Debug: Log environment variable
-    console.log('[DEBUG] LOCAL_LLM_URL from env:', process.env.LOCAL_LLM_URL)
-    console.log('[DEBUG] All env vars:', Object.keys(process.env).filter(k => k.includes('LLM')))
-
-    // 1. Validate environment variable with explicit fallback for debugging
-    const localLLMUrl = process.env.LOCAL_LLM_URL || 'http://127.0.0.1:11434'
-    if (!localLLMUrl) {
-      return NextResponse.json(
-        { error: 'LOCAL_LLM_URL is not set in environment variables.' },
-        { status: 500 }
-      )
-    }
-
-    // 2. Construct the target URL (OpenAI-compatible endpoint)
-    // Ensure no double slashes if env var has trailing slash
-    const baseUrl = localLLMUrl.replace(/\/$/, '')
-    const targetUrl = `${baseUrl}/v1/chat/completions`
-
-    console.log(`[Proxy] Forwarding request to: ${targetUrl}`)
-
-    // Add system prompt if not present
-    const systemPrompt = {
-      role: 'system',
-      content: 'You are Kepler AI, an advanced AI assistant with the ability to generate images and videos. When users ask to generate images or videos, respond positively and acknowledge their request. The system will automatically handle generation.'
-    }
-    
-    // Check if system message already exists
-    const hasSystemMessage = messages.some((m: any) => m.role === 'system')
-    const finalMessages = hasSystemMessage ? messages : [systemPrompt, ...messages]
-
-    // 3. Forward the request
     const response = await fetch(targetUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model: 'qwen2.5', // Default model, or could be dynamic
-        messages: finalMessages,
-        stream: true, // Output will remain SSE compatible
-      }),
+      body: JSON.stringify(payload),
     })
 
-    // 4. Handle upstream errors
     if (!response.ok) {
       const errorText = await response.text()
-      console.error(`[Proxy] Upstream error (${response.status}): ${errorText}`)
       return NextResponse.json(
-        { error: `Upstream LLM error: ${response.statusText}`, details: errorText },
+        { error: `Upstream error: ${response.statusText}`, details: errorText },
         { status: response.status }
       )
     }
 
-    // 5. Stream the response back
-    // Since we are targeting /v1/chat/completions, the output is already SSE.
-    // We can pipe it directly to the client.
     return new Response(response.body, {
       headers: {
         'Content-Type': 'text/event-stream',
@@ -70,21 +32,11 @@ export async function POST(req: NextRequest) {
         'Connection': 'keep-alive',
       },
     })
-
   } catch (error: any) {
-    console.error('[Proxy] Internal Server Error:', error)
-    // Detailed error logging for debugging
-    if (error.cause) console.error('[Proxy] Cause:', error.cause)
-    if (error.stack) console.error('[Proxy] Stack:', error.stack)
-
+    console.error('[Proxy] Error:', error)
     return NextResponse.json(
-      {
-        error: 'Internal Server Error',
-        details: error.message,
-        suggestion: error.message.includes('fetch') ? 'Check if Ollama is running at ' + process.env.LOCAL_LLM_URL : undefined
-      },
+      { error: 'Internal Server Error', details: error.message },
       { status: 500 }
     )
   }
 }
-

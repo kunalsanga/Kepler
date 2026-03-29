@@ -23,7 +23,14 @@ echo.
 
 REM Start Generation Services
 echo [2/4] Starting Image & Video Generation Services...
-call START_GENERATION_SERVICES.bat
+start "Generation Services" cmd /c "START_GENERATION_SERVICES.bat"
+timeout /t 2 /nobreak >nul
+echo.
+
+REM Start AI Gateway
+echo [3/4] Starting AI Gateway...
+start "AI Gateway" cmd /k "START_GATEWAY.bat"
+timeout /t 5 /nobreak >nul
 echo.
 
 REM Start Next.js

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getJobStatus } from '@/lib/comfyui'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -10,20 +9,17 @@ export async function GET(
 ) {
   try {
     const { jobId } = params
-    const job = getJobStatus(jobId)
+    const gatewayUrl = process.env.AI_GATEWAY_URL || 'http://127.0.0.1:9000'
+    const targetUrl = `${gatewayUrl.replace(/\/$/, '')}/video/status/${jobId}`
 
-    if (!job) {
-      return NextResponse.json(
-        { error: 'Job not found' },
-        { status: 404 }
-      )
+    const response = await fetch(targetUrl)
+
+    if (!response.ok) {
+      return NextResponse.json({ error: 'Job not found or failed' }, { status: response.status })
     }
 
-    return NextResponse.json({
-      status: job.status,
-      videoUrl: job.videoUrl,
-      error: job.error,
-    })
+    const data = await response.json()
+    return NextResponse.json(data)
   } catch (error: any) {
     console.error('[Video Status API] Error:', error)
     return NextResponse.json(
@@ -32,4 +28,3 @@ export async function GET(
     )
   }
 }
-

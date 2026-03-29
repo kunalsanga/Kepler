@@ -19,7 +19,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
+OLLAMA_URL = os.getenv("LOCAL_LLM_URL", "http://localhost:11434") + "/api/generate"
 
 # Models
 class TextRequest(BaseModel):

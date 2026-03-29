@@ -1,49 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { generateImage } from '@/lib/comfyui'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   try {
-    const { prompt, width, height } = await req.json()
+    const payload = await req.json()
+    const gatewayUrl = process.env.AI_GATEWAY_URL || 'http://127.0.0.1:9000'
+    const targetUrl = `${gatewayUrl.replace(/\/$/, '')}/image`
 
-    if (!prompt) {
-      return NextResponse.json(
-        { error: 'Prompt is required' },
-        { status: 400 }
-      )
+    const response = await fetch(targetUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+
+    if (!response.ok) {
+      let errDetail = 'Image generation failed'
+      try {
+        const err = await response.json()
+        if (err.detail) errDetail = err.detail
+      } catch (e) {}
+      return NextResponse.json({ error: errDetail }, { status: response.status })
     }
 
-    const result = await generateImage(
-      prompt,
-      width || 512,
-      height || 512
-    )
-
-    return NextResponse.json(result)
+    const data = await response.json()
+    return NextResponse.json(data)
   } catch (error: any) {
     console.error('[Image API] Error:', error)
-    
-    // Provide user-friendly error messages
-    let errorMessage = error.message || 'Image generation failed'
-    let statusCode = 500
-    
-    if (error.message?.includes('not running') || error.message?.includes('ECONNREFUSED')) {
-      statusCode = 503 // Service Unavailable
-      errorMessage = 'ComfyUI service is not running. Please start it by running START_GENERATION_SERVICES.bat'
-    }
-    
     return NextResponse.json(
-      {
-        error: errorMessage,
-        details: error.message,
-        suggestion: error.message?.includes('not running') 
-          ? 'Run START_GENERATION_SERVICES.bat to start ComfyUI and CogVideo services'
-          : undefined,
-      },
-      { status: statusCode }
+      { error: 'Image generation failed', details: error.message },
+      { status: 500 }
     )
   }
 }
-
