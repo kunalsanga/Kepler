@@ -21,10 +21,13 @@ app.add_middleware(
 
 OLLAMA_URL = os.getenv("LOCAL_LLM_URL", "http://localhost:11434") + "/api/generate"
 
+# Base directory for workflow files
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # Models
 class TextRequest(BaseModel):
     prompt: str
-    model: str = "qwen2.5:latest" 
+    model: str = "qwen2.5:latest"
 
 class ImageRequest(BaseModel):
     prompt: str
@@ -38,9 +41,9 @@ class VideoRequest(BaseModel):
 
 # Workflows loading
 def load_workflow(name):
-    path = os.path.join(os.path.dirname(__file__), "workflows", name)
+    path = os.path.join(BASE_DIR, "workflows", name)
     if not os.path.exists(path):
-        raise FileNotFoundError(f"Workflow file {name} not found.")
+        raise FileNotFoundError(f"Workflow file '{name}' not found at: {path}")
     with open(path, "r") as f:
         return json.load(f)
 
@@ -69,41 +72,41 @@ def generate_text(req: TextRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/image")
-def generate_image(req: ImageRequest):
+def generate_image_endpoint(req: ImageRequest):
     """
     Generates an image via ComfyUI (SD 1.5).
     """
     try:
         ws = open_websocket_connection()
         workflow = load_workflow("image_workflow_api.json")
-        
+
         # Mapping inputs to standard SD 1.5 workflow IDs
-        if "6" in workflow: # Positive Prompt
+        if "6" in workflow:  # Positive Prompt
             workflow["6"]["inputs"]["text"] = req.prompt
-        if "7" in workflow: # Negative Prompt
+        if "7" in workflow:  # Negative Prompt
             workflow["7"]["inputs"]["text"] = req.negative_prompt
-        if "3" in workflow: # KSampler (Seed)
+        if "3" in workflow:  # KSampler (Seed)
             workflow["3"]["inputs"]["seed"] = random.randint(1, 10000000000)
-        if "5" in workflow: # Empty Latent Image (Size)
-             workflow["5"]["inputs"]["width"] = req.width
-             workflow["5"]["inputs"]["height"] = req.height
+        if "5" in workflow:  # Empty Latent Image (Size)
+            workflow["5"]["inputs"]["width"] = req.width
+            workflow["5"]["inputs"]["height"] = req.height
 
         files = get_images(ws, workflow)
         ws.close()
-        
+
         if not files:
-             raise HTTPException(status_code=500, detail="No images generated.")
-            
+            raise HTTPException(status_code=500, detail="No images generated.")
+
         b64_img = base64.b64encode(files[0]).decode('utf-8')
         return {"image_base64": b64_img, "format": "png"}
-        
+
     except ConnectionRefusedError:
-         raise HTTPException(status_code=503, detail="ComfyUI service is not reachable on port 8188.")
+        raise HTTPException(status_code=503, detail="ComfyUI service is not reachable on port 8188.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Image generation failed: {str(e)}")
 
 @app.post("/api/video")
-def generate_video(req: VideoRequest):
+def generate_video_endpoint(req: VideoRequest):
     """
     Generates a video via ComfyUI (CogVideo).
     """
@@ -114,35 +117,34 @@ def generate_video(req: VideoRequest):
         # Dynamically update CogVideo/Text nodes
         for node_id, node_data in workflow.items():
             if node_data["class_type"] in ["CogVideoXEncodePrompt", "CLIPTextEncode", "CLIPTextEncodeSelect"]:
-                 if "text" in node_data["inputs"]:
-                     node_data["inputs"]["text"] = req.prompt
-        
+                if "text" in node_data["inputs"]:
+                    node_data["inputs"]["text"] = req.prompt
+
             if node_data["class_type"] in ["EmptyCogVideoLatent", "EmptyLatentImage"]:
-                 if "length" in node_data["inputs"]:
-                     node_data["inputs"]["length"] = req.frames
-                 if "width" in node_data["inputs"]:
-                     node_data["inputs"]["width"] = 384 # Optimized for 6GB
-                 if "height" in node_data["inputs"]:
-                     node_data["inputs"]["height"] = 384
+                if "length" in node_data["inputs"]:
+                    node_data["inputs"]["length"] = req.frames
+                if "width" in node_data["inputs"]:
+                    node_data["inputs"]["width"] = 384  # Optimized for 6GB VRAM
+                if "height" in node_data["inputs"]:
+                    node_data["inputs"]["height"] = 384
 
             if "seed" in node_data["inputs"]:
-                 node_data["inputs"]["seed"] = random.randint(1, 10000000000)
+                node_data["inputs"]["seed"] = random.randint(1, 10000000000)
 
         files = get_images(ws, workflow)
         ws.close()
-        
+
         if not files:
-             raise HTTPException(status_code=500, detail="No video generated.")
+            raise HTTPException(status_code=500, detail="No video generated.")
 
         b64_video = base64.b64encode(files[0]).decode('utf-8')
-        return {"video_base64": b64_video, "format": "mp4"} 
+        return {"video_base64": b64_video, "format": "mp4"}
 
     except ConnectionRefusedError:
-         raise HTTPException(status_code=503, detail="ComfyUI service is not reachable.")
+        raise HTTPException(status_code=503, detail="ComfyUI service is not reachable.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Video generation failed: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-Line numbers have been added for your convenience.

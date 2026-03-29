@@ -1,10 +1,12 @@
 import websocket
 import uuid
 import json
+import os
 import urllib.request
 import urllib.parse
 
-COMFY_SERVER = "127.0.0.1:8188"
+_comfy_url = os.getenv("COMFYUI_URL", "http://127.0.0.1:8188")
+COMFY_SERVER = _comfy_url.replace("http://", "").replace("https://", "")
 CLIENT_ID = str(uuid.uuid4())
 
 def queue_prompt(prompt_workflow):
