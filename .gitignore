@@ -38,3 +38,10 @@ next-env.d.ts
 # cloudflare tunnel config (may contain sensitive info)
 cloudflared.yml
 *.cloudflared.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+gateway/venv/
+backend/venv/
