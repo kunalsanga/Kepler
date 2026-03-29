@@ -2,8 +2,9 @@ import httpx
 import uuid
 import time
 import asyncio
-from utils import set_job, update_job, check_comfy_health
+import base64
 import urllib.parse
+from utils import set_job, update_job, check_comfy_health
 
 COMFYUI_URL = "http://127.0.0.1:8188"
 
@@ -32,6 +33,28 @@ def create_video_workflow(prompt: str):
         "8": {"class_type": "VAEDecode", "inputs": {"samples": ["7", 0], "vae": ["1", 2]}},
         "9": {"class_type": "VHS_VideoCombine", "inputs": {"frame_rate": 8, "format": "video/h264-mp4", "filename_prefix": "AnimateDiff", "images": ["8", 0]}}
     }
+
+async def fetch_file_as_base64(client: httpx.AsyncClient, filename: str, subfolder: str, item_type: str) -> str:
+    """Fetch a file from ComfyUI and return it as a base64 data URL so any browser can display it."""
+    params = urllib.parse.urlencode({"filename": filename, "subfolder": subfolder, "type": item_type})
+    url = f"{COMFYUI_URL}/view?{params}"
+    res = await client.get(url, timeout=60.0)
+    res.raise_for_status()
+
+    # Determine MIME type from filename
+    if filename.endswith(".mp4"):
+        content_type = "video/mp4"
+    elif filename.endswith(".webm"):
+        content_type = "video/webm"
+    elif filename.endswith(".gif"):
+        content_type = "image/gif"
+    elif filename.endswith((".jpg", ".jpeg")):
+        content_type = "image/jpeg"
+    else:
+        content_type = "image/png"
+
+    b64 = base64.b64encode(res.content).decode("utf-8")
+    return f"data:{content_type};base64,{b64}"
 
 async def trigger_image_job(prompt: str, width: int = 512, height: int = 512):
     await check_comfy_health(COMFYUI_URL)
@@ -97,35 +120,40 @@ async def poll_comfyui(job_id: str, prompt_id: str, job_type: str):
                                 outputs = history[prompt_id].get("outputs", {})
                                 for node_id, node_output in outputs.items():
                                     
-                                    # Handle standard image outputs (SaveImage)
+                                    # Standard image outputs (SaveImage node)
                                     if "images" in node_output and len(node_output["images"]) > 0:
                                         item = node_output["images"][0]
                                         filename = item["filename"]
                                         subfolder = item.get("subfolder", "")
                                         item_type = item.get("type", "output")
+                                        is_video = filename.endswith((".mp4", ".webm", ".gif"))
                                         
-                                        is_video = filename.endswith(".mp4") or filename.endswith(".webm") or filename.endswith(".gif")
-                                        
-                                        url = f"{COMFYUI_URL}/view?filename={urllib.parse.quote(filename)}&subfolder={urllib.parse.quote(subfolder)}&type={item_type}"
-                                        if is_video:
-                                            url += "&format=video"
-                                            
-                                        if not is_video:
-                                            update_job(job_id, {"status": "completed", "imageUrl": url})
-                                        else:
-                                            update_job(job_id, {"status": "completed", "videoUrl": url})
+                                        try:
+                                            data_url = await fetch_file_as_base64(client, filename, subfolder, item_type)
+                                            if is_video:
+                                                update_job(job_id, {"status": "completed", "videoUrl": data_url})
+                                            else:
+                                                update_job(job_id, {"status": "completed", "imageUrl": data_url})
+                                            print(f"[{job_id}] ✅ Completed — stored as base64 data URL")
+                                        except Exception as e:
+                                            print(f"[{job_id}] ❌ Failed to fetch image: {e}")
+                                            update_job(job_id, {"status": "failed", "error": f"Could not retrieve image: {e}"})
                                         return
                                         
-                                    # Handle video / animated diff outputs (VHS_VideoCombine)
+                                    # Video outputs (VHS_VideoCombine node)
                                     if "gifs" in node_output and len(node_output["gifs"]) > 0:
                                         item = node_output["gifs"][0]
                                         filename = item["filename"]
                                         subfolder = item.get("subfolder", "")
                                         item_type = item.get("type", "output")
                                         
-                                        url = f"{COMFYUI_URL}/view?filename={urllib.parse.quote(filename)}&subfolder={urllib.parse.quote(subfolder)}&type={item_type}"
-                                        
-                                        update_job(job_id, {"status": "completed", "videoUrl": url})
+                                        try:
+                                            data_url = await fetch_file_as_base64(client, filename, subfolder, item_type)
+                                            update_job(job_id, {"status": "completed", "videoUrl": data_url})
+                                            print(f"[{job_id}] ✅ Video completed — stored as base64 data URL")
+                                        except Exception as e:
+                                            print(f"[{job_id}] ❌ Failed to fetch video: {e}")
+                                            update_job(job_id, {"status": "failed", "error": f"Could not retrieve video: {e}"})
                                         return
             except Exception as e:
                 print(f"Error polling {job_id}: {e}")
