@@ -46,9 +46,12 @@ export default function ChatPage() {
         setMessages([...newMessages, assistantMessage])
 
         // Poll for completion
+        let pollErrors = 0
         const pollInterval = setInterval(async () => {
           try {
             const status = await pollJobStatus(job.jobId, genCommand.type!)
+            console.log('[Poll]', job.jobId, status.status, status.url ? 'has-url' : 'no-url')
+            pollErrors = 0 // reset error counter on success
 
             setMessages(prev => {
               const updatedMessages = [...prev]
@@ -58,7 +61,7 @@ export default function ChatPage() {
                 updatedMessages[msgIndex] = {
                   ...updatedMessages[msgIndex],
                   content: status.status === 'completed'
-                    ? '' // Clear text for completed images to show only the image
+                    ? ''
                     : `Generating ${genCommand.type}...`,
                   type: genCommand.type as 'image' | 'video',
                   imageUrl: genCommand.type === 'image' ? status.url : undefined,
@@ -73,9 +76,12 @@ export default function ChatPage() {
               setIsStreaming(false)
             }
           } catch (err) {
-            console.error('Polling error:', err)
-            clearInterval(pollInterval)
-            setIsStreaming(false)
+            pollErrors++
+            console.error(`Polling error (attempt ${pollErrors}):`, err)
+            if (pollErrors >= 3) {
+              clearInterval(pollInterval)
+              setIsStreaming(false)
+            }
           }
         }, 2000)
 

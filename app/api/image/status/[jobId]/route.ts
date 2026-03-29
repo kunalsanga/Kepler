@@ -12,7 +12,7 @@ export async function GET(
     const gatewayUrl = process.env.AI_GATEWAY_URL || 'http://127.0.0.1:9000'
     const targetUrl = `${gatewayUrl.replace(/\/$/, '')}/image/status/${jobId}`
 
-    const response = await fetch(targetUrl)
+    const response = await fetch(targetUrl, { cache: 'no-store' })
 
     if (!response.ok) {
       return NextResponse.json({ error: 'Job not found or failed' }, { status: response.status })
